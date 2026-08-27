@@ -461,7 +461,17 @@
       spawnNote(i);
     }
 
+    // a fast strum crosses several strings within milliseconds, and each
+    // floating note-label lives 1200ms -- without a cap, spawning one per
+    // crossing outpaces removal and piles up into a growing stack of
+    // simultaneously-animating DOM nodes. Past this cap, a crossing still
+    // makes sound, it just doesn't also spawn a label -- purely cosmetic,
+    // so nothing is lost by skipping it under heavy play.
+    var MAX_LIVE_NOTES = 6;
+    var liveNoteCount = 0;
     function spawnNote(i) {
+      if (liveNoteCount >= MAX_LIVE_NOTES) return;
+      liveNoteCount++;
       var s = STRINGS[i];
       var pt = svg.createSVGPoint();
       pt.x = X1 - 4 - GX;
@@ -475,8 +485,17 @@
       document.body.appendChild(el);
       setTimeout(function () {
         el.remove();
+        liveNoteCount--;
       }, 1200);
     }
+
+    // true once a string has settled back to its flat rest position AND
+    // that rest frame has actually been drawn -- lets renderStrings skip a
+    // string entirely while it's just sitting there instead of recomputing
+    // and re-writing an unchanged 25-point path 60 times a second forever.
+    var stringSettled = STRINGS.map(function () {
+      return true;
+    });
 
     var raf1 = requestAnimationFrame(renderStrings);
     function renderStrings() {
@@ -488,6 +507,8 @@
         N = 24;
       for (var i = 0; i < STRINGS.length; i++) {
         var st = activeStrings[i];
+        var held = heldIndex === i;
+        if (!st && !held && stringSettled[i]) continue;
         var pts = [],
           ringing = false,
           env = 0,
@@ -498,6 +519,7 @@
           if (env > 0.03) ringing = true;
           else delete activeStrings[i];
         }
+        stringSettled[i] = !ringing && !held;
         for (var k = 0; k <= N; k++) {
           var u = k / N;
           var x = lerp(X0, X1, u),

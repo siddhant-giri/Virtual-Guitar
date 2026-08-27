@@ -225,7 +225,17 @@
       return null;
     }
 
+    // a fast run across the keys can spawn several labels within
+    // milliseconds -- without a cap, spawning outpaces each label's
+    // 1200ms lifetime and piles up into a growing stack of
+    // simultaneously-animating DOM nodes. Past this cap, a key press still
+    // sounds, it just doesn't also spawn a label -- purely cosmetic, so
+    // nothing is lost by skipping it under heavy play.
+    var MAX_LIVE_NOTES = 6;
+    var liveNoteCount = 0;
     function spawnNote(type, i) {
+      if (liveNoteCount >= MAX_LIVE_NOTES) return;
+      liveNoteCount++;
       var k = dataFor(type, i);
       var el = elFor(type, i);
       var r = el.getBoundingClientRect();
@@ -238,6 +248,7 @@
       document.body.appendChild(noteEl);
       setTimeout(function () {
         noteEl.remove();
+        liveNoteCount--;
       }, 1200);
     }
 

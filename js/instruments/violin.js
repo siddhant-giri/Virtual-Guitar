@@ -227,6 +227,17 @@
       if (activeIndex === i) activeIndex = null;
     }
 
+    // true once a string's bow envelope has decayed to silence AND that
+    // rest frame has actually been drawn -- lets tick() skip a string
+    // entirely while it's just sitting there instead of recomputing and
+    // re-writing an unchanged 21-point path 60 times a second forever.
+    // The envelope is an exponential decay toward 0, so it never hits
+    // exactly zero -- settled just means close enough to be inaudible and
+    // visually flat.
+    var stringSettled = STRINGS.map(function () {
+      return true;
+    });
+
     var raf1 = requestAnimationFrame(tick);
     var lastT = performance.now();
     function tick(now) {
@@ -239,8 +250,10 @@
       var N = 20;
       for (var i = 0; i < STRINGS.length; i++) {
         var b = bow[i];
+        if (b.target === 0 && b.amp < 0.001 && stringSettled[i]) continue;
         b.amp += (b.target - b.amp) * Math.min(1, dt * 8);
         b.phase += dt * (11 + i * 1.3);
+        stringSettled[i] = b.target === 0 && b.amp < 0.001;
         var wob = b.amp > 0.02 ? Math.sin(b.phase * Math.PI * 2) * b.amp : 0;
         var pts = [];
         for (var k = 0; k <= N; k++) {
@@ -283,7 +296,17 @@
       }, 240);
     }
 
+    // a fast bow crossing several strings, or a chord, can spawn several
+    // labels within milliseconds -- without a cap, spawning outpaces each
+    // label's 1200ms lifetime and piles up into a growing stack of
+    // simultaneously-animating DOM nodes. Past this cap, a note still
+    // sounds, it just doesn't also spawn a label -- purely cosmetic, so
+    // nothing is lost by skipping it under heavy play.
+    var MAX_LIVE_NOTES = 6;
+    var liveNoteCount = 0;
     function spawnNote(i) {
+      if (liveNoteCount >= MAX_LIVE_NOTES) return;
+      liveNoteCount++;
       var s = STRINGS[i];
       var pt = svg.createSVGPoint();
       pt.x = X1 - 8;
@@ -297,6 +320,7 @@
       document.body.appendChild(el);
       setTimeout(function () {
         el.remove();
+        liveNoteCount--;
       }, 1200);
     }
 

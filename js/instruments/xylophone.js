@@ -310,7 +310,17 @@
       spawnNote(i);
     }
 
+    // a fast run across the bars can spawn several labels within
+    // milliseconds -- without a cap, spawning outpaces each label's
+    // 1200ms lifetime and piles up into a growing stack of
+    // simultaneously-animating DOM nodes. Past this cap, a strike still
+    // sounds, it just doesn't also spawn a label -- purely cosmetic, so
+    // nothing is lost by skipping it under heavy play.
+    var MAX_LIVE_NOTES = 6;
+    var liveNoteCount = 0;
     function spawnNote(i) {
+      if (liveNoteCount >= MAX_LIVE_NOTES) return;
+      liveNoteCount++;
       var b = BARS[i];
       var pt = svg.createSVGPoint();
       pt.x = b.cx;
@@ -324,6 +334,7 @@
       document.body.appendChild(el);
       setTimeout(function () {
         el.remove();
+        liveNoteCount--;
       }, 1200);
     }
 

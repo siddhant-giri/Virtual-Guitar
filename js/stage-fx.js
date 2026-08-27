@@ -25,7 +25,12 @@
   var motes = [];
 
   function resizeCanvas(w, h) {
-    DPR = Math.min(2, window.devicePixelRatio || 1);
+    // the motes are small, soft, low-contrast dots -- retina sharpness is
+    // wasted on them, and a full-viewport canvas cleared/redrawn every
+    // frame at 2x device pixels is a real, avoidable cost on high-DPI
+    // screens. Capping at 1x quarters the pixel count on a typical 2x
+    // display with no visible difference.
+    DPR = 1;
     canvas.width = w * DPR;
     canvas.height = h * DPR;
     canvas.style.width = w + "px";
