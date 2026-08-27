@@ -1,0 +1,915 @@
+/* ================= shared theme + slider mechanics =================
+   Instrument-specific geometry (where a guitar's neck sits vs. where a
+   piano's keybed sits) lives in each instrument's own <style> block,
+   injected alongside its markup. This file only holds what every
+   instrument shares: the palette, the 1280x832 stage scaling, the
+   carousel itself, and the small set of reusable UI atoms (chip buttons,
+   the footer bar, key hints, floating note labels).
+*/
+
+:root {
+  --cream: #fff6ee;
+  --cream-deep: #f6e9dc;
+  --ink: #0d0a07;
+  --brown: #8d663a;
+  --brown-deep: #693a00;
+  --watermark: rgba(105, 58, 0, 0.1);
+  --serif: "Libertinus Serif Display", "Libertinus Serif", Georgia, serif;
+  --sg-scale: 1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--serif);
+}
+
+/* ---------- backdrop ---------- */
+.sg-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(ellipse 55% 60% at 82% 18%, rgba(214, 186, 155, 0.35), transparent 65%),
+    radial-gradient(ellipse 45% 50% at 95% 65%, rgba(222, 196, 166, 0.3), transparent 60%),
+    radial-gradient(ellipse 70% 55% at 10% 90%, rgba(226, 204, 178, 0.28), transparent 62%),
+    radial-gradient(ellipse 60% 45% at 40% 0%, rgba(255, 252, 247, 0.15), transparent 70%),
+    url("../assets/backdrop-paper.png") center / cover no-repeat, var(--cream);
+}
+.sg-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 30% 45% at 70% 40%, rgba(255, 255, 255, 0.55), transparent 70%),
+    radial-gradient(ellipse 25% 35% at 88% 85%, rgba(255, 255, 255, 0.4), transparent 70%);
+  mix-blend-mode: soft-light;
+}
+
+.sg-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+}
+
+#sg-motes {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ---------- slider mechanics ---------- */
+#slider-viewport {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+#slider-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 2.3s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+.sg-slide {
+  position: relative;
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  opacity: 0.3;
+  transform: scale(0.965);
+  transition: opacity 1.7s cubic-bezier(0.16, 1, 0.3, 1), transform 2.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+.sg-slide--active {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-slide {
+    transform: scale(0.965);
+  }
+}
+
+/* ---------- parallax depth on slide transitions ----------
+   --sg-px is set by slider.js right before a slide activates -- a signed
+   px push in the direction it's entering from (custom properties inherit,
+   so setting it once on .sg-slide reaches every layer below). Each layer
+   moves by a different multiple of it, so the scene doesn't slide as one
+   flat card: the background name barely shifts, the instrument itself
+   (the thing this is actually about) swings through the widest arc, and
+   the copy sits in between -- real depth instead of a uniform pan. */
+.sg-watermark {
+  transition: transform 2.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sg-slide--active .sg-watermark {
+  transform: translateX(-50%);
+}
+.sg-parallax-instrument {
+  transition: transform 2.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(calc(var(--sg-px, 0px) * 2.6));
+}
+.sg-slide--active .sg-parallax-instrument {
+  transform: translateX(0);
+}
+.sg-copy {
+  transition: transform 2.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(calc(var(--sg-px, 0px) * 1.1));
+}
+.sg-slide--active .sg-copy {
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-watermark,
+  .sg-parallax-instrument,
+  .sg-copy {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* fixed-composition stage, shared aspect ratio across every instrument */
+.sg-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1280px;
+  height: 832px;
+  transform: translate(-50%, -50%) scale(var(--sg-scale));
+  transform-origin: center center;
+}
+
+.sg-watermark {
+  position: absolute;
+  left: 50%;
+  top: 96px;
+  transform: translateX(-50%) translateX(calc(var(--sg-px, 0px) * 0.55));
+  z-index: 1;
+  font-family: var(--serif);
+  font-size: 225px;
+  line-height: 195px;
+  letter-spacing: -4.5px;
+  color: var(--watermark);
+  white-space: nowrap;
+  text-align: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+.sg-copy {
+  position: absolute;
+  left: 701px;
+  top: 555px;
+  z-index: 4;
+  width: 500px;
+}
+.sg-overline-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.sg-overline-label {
+  font-family: var(--serif);
+  font-size: 24px;
+  letter-spacing: -1.44px;
+  color: var(--brown);
+  white-space: nowrap;
+}
+.sg-rule {
+  width: 220px;
+  height: 1px;
+  background: var(--brown);
+  opacity: 0.75;
+}
+.sg-headline {
+  margin: 10px 0 0;
+  font-family: var(--serif);
+  font-size: 52px;
+  line-height: 48px;
+  letter-spacing: -3px;
+  color: #000;
+  max-width: 465px;
+  text-wrap: balance;
+}
+
+/* ---------- reveal-on-activate: staggered text entrance ----------
+   Applied only while an ancestor carries .sg-slide--active, so simply
+   toggling that class (already how the slider switches instruments)
+   is enough to make the animation play from scratch every time --
+   no JS retrigger/reflow hack needed. */
+@keyframes sgRise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes sgRuleGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.sg-slide--active .sg-overline-row {
+  animation: sgRise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.12s;
+}
+.sg-slide--active .sg-overline-row .sg-rule {
+  transform-origin: left center;
+  animation: sgRuleGrow 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.32s;
+}
+/* headline reveals letter by letter (see splitHeadlineChars in slider.js
+   for the one-time DOM split into .sg-char spans); each char blurs/lifts
+   into place with a delay staggered by its --i index. */
+/* one atomic box per word, so a wrapped line can only break at a real
+   space -- without this, every letter is its own inline-block box and the
+   line can wrap between any two of them, mid-word. */
+.sg-word {
+  display: inline-block;
+}
+.sg-char {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(9px);
+  transform: translateY(7px);
+}
+.sg-char--space {
+  display: inline;
+}
+.sg-slide--active .sg-headline .sg-char {
+  animation: sgCharReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(0.2s + var(--i, 0) * 14ms);
+}
+/* the big background instrument name reveals the same way, just softer
+   (a bigger blur to match its scale) and a touch slower per letter since
+   it's shorter and further back visually. */
+.sg-watermark .sg-char {
+  filter: blur(16px);
+  transform: translateY(10px);
+}
+.sg-slide--active .sg-watermark .sg-char {
+  animation: sgWatermarkCharReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(0.05s + var(--i, 0) * 22ms);
+}
+@keyframes sgWatermarkCharReveal {
+  from {
+    opacity: 0;
+    filter: blur(16px);
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+@keyframes sgCharReveal {
+  from {
+    opacity: 0;
+    filter: blur(9px);
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-char {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+  .sg-slide--active .sg-headline .sg-char,
+  .sg-slide--active .sg-watermark .sg-char {
+    animation: none;
+  }
+}
+.sg-slide--active .sg-footer {
+  animation: sgRise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.4s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-slide--active .sg-overline-row,
+  .sg-slide--active .sg-overline-row .sg-rule,
+  .sg-slide--active .sg-footer {
+    animation: none;
+  }
+}
+
+/* ---------- nav arrows ---------- */
+.sg-nav-btn {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(141, 102, 58, 0.35);
+  background: rgba(255, 250, 244, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--brown-deep);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.sg-nav-btn:hover {
+  border-color: var(--brown);
+  background: rgba(255, 250, 244, 0.95);
+}
+.sg-nav-btn:active {
+  transform: translateY(-50%) scale(0.94);
+}
+.sg-nav-btn svg {
+  width: 18px;
+  height: 18px;
+}
+#slider-prev {
+  left: 22px;
+}
+#slider-next {
+  right: 22px;
+}
+
+/* ---------- instrument tabs ---------- */
+#slider-tabs {
+  position: fixed;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 250, 244, 0.78);
+  border: 1px solid rgba(141, 102, 58, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.sg-tab {
+  font-family: var(--serif);
+  font-size: 13px;
+  letter-spacing: -0.1px;
+  color: var(--brown-deep);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 7px 15px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+}
+.sg-tab:hover {
+  background: rgba(141, 102, 58, 0.12);
+}
+.sg-tab--active {
+  background: var(--brown-deep);
+  color: var(--cream);
+}
+
+/* ---------- logo (top-left) ---------- */
+.sg-logo {
+  position: fixed;
+  left: 22px;
+  top: 16px;
+  z-index: 12;
+  width: 44px;
+  height: 44px;
+  display: block;
+  border-radius: 50%;
+  background: rgba(255, 250, 244, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+.sg-logo:hover {
+  background: rgba(255, 250, 244, 0.95);
+  transform: scale(1.04);
+}
+.sg-logo svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- music player (top-right): preset dropdown + play/pause ---------- */
+.sg-music-player {
+  position: fixed;
+  right: 22px;
+  top: 16px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 250, 244, 0.78);
+  border: 1px solid rgba(141, 102, 58, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+/* custom song dropdown -- a native <select>'s open popup can't be styled
+   at all (it's rendered by the OS/browser chrome, not the page), so this
+   is a button + absolutely-positioned list instead, fully in the site's
+   own look. */
+.sg-music-dropdown {
+  position: relative;
+}
+.sg-music-dropdown-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--serif);
+  font-size: 13px;
+  letter-spacing: -0.1px;
+  color: var(--brown-deep);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 7px 12px 7px 14px;
+  max-width: 176px;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+.sg-music-dropdown-btn:hover:not(:disabled) {
+  background: rgba(141, 102, 58, 0.12);
+}
+.sg-music-dropdown-btn:focus-visible {
+  outline: 2px solid var(--brown);
+  outline-offset: 2px;
+}
+.sg-music-dropdown-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.sg-music-dropdown-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-music-dropdown-caret {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  color: var(--brown);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sg-music-dropdown--open .sg-music-dropdown-caret {
+  transform: rotate(180deg);
+}
+.sg-music-dropdown-list {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  min-width: 232px;
+  margin: 0;
+  padding: 7px;
+  list-style: none;
+  border-radius: 18px;
+  background: rgba(255, 251, 245, 0.96);
+  border: 1px solid rgba(141, 102, 58, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 22px 44px -14px rgba(58, 32, 6, 0.32), 0 6px 16px rgba(58, 32, 6, 0.1);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px) scale(0.97);
+  transform-origin: top right;
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
+}
+.sg-music-dropdown--open .sg-music-dropdown-list {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sg-music-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--serif);
+  font-size: 14.5px;
+  letter-spacing: -0.1px;
+  color: var(--ink);
+  padding: 10px 12px;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.sg-music-option + .sg-music-option {
+  margin-top: 1px;
+}
+.sg-music-option:hover {
+  background: rgba(141, 102, 58, 0.13);
+}
+.sg-music-option--active {
+  background: var(--brown-deep);
+  color: var(--cream);
+}
+.sg-music-option-check {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.sg-music-option--active .sg-music-option-check {
+  opacity: 1;
+  transform: scale(1);
+}
+.sg-music-option-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-music-dropdown--open .sg-music-option {
+  animation: sgMusicOptionIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.sg-music-dropdown--open .sg-music-option:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.sg-music-dropdown--open .sg-music-option:nth-child(2) {
+  animation-delay: 0.05s;
+}
+.sg-music-dropdown--open .sg-music-option:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.sg-music-dropdown--open .sg-music-option:nth-child(4) {
+  animation-delay: 0.11s;
+}
+@keyframes sgMusicOptionIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-music-dropdown-list,
+  .sg-music-option {
+    animation: none !important;
+    transition-duration: 0.01s !important;
+  }
+}
+@media (max-width: 640px) {
+  .sg-music-dropdown-list {
+    min-width: 200px;
+    right: -6px;
+  }
+}
+.sg-music-play {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: none;
+  background: var(--brown-deep);
+  color: var(--cream);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease, background 0.2s ease;
+}
+.sg-music-play:hover:not(:disabled) {
+  transform: scale(1.06);
+}
+.sg-music-play:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.sg-music-play:disabled {
+  background: rgba(141, 102, 58, 0.35);
+  cursor: default;
+}
+.sg-music-play-icon,
+.sg-music-pause-icon {
+  width: 15px;
+  height: 15px;
+}
+.sg-music-pause-icon {
+  display: none;
+}
+.sg-music-play.is-playing .sg-music-play-icon {
+  display: none;
+}
+.sg-music-play.is-playing .sg-music-pause-icon {
+  display: block;
+}
+
+/* ---------- one-time hint: audio needs a real gesture to unlock ---------- */
+.sg-audio-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translate(-50%, 6px);
+  z-index: 12;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--brown-deep);
+  white-space: nowrap;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(255, 250, 244, 0.85);
+  border: 1px solid rgba(141, 102, 58, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.sg-audio-hint--visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  animation: sgAudioHintPulse 2.2s ease-in-out infinite;
+}
+@keyframes sgAudioHintPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(105, 58, 0, 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(105, 58, 0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-audio-hint--visible {
+    animation: none;
+  }
+}
+@media (max-width: 640px) {
+  .sg-logo {
+    width: 36px;
+    height: 36px;
+    left: 14px;
+    top: 14px;
+  }
+  .sg-music-player {
+    right: 14px;
+    top: 14px;
+  }
+  .sg-music-dropdown-btn {
+    max-width: 96px;
+    font-size: 12px;
+  }
+}
+
+/* ---------- reusable: chip buttons (chords / notes / octaves) ---------- */
+.sg-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+.sg-chip {
+  font-family: var(--serif);
+  font-size: 14px;
+  letter-spacing: -0.1px;
+  color: var(--brown-deep);
+  background: transparent;
+  border: 1px solid rgba(141, 102, 58, 0.35);
+  border-radius: 999px;
+  padding: 5px 13px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+.sg-chip:hover {
+  border-color: var(--brown);
+  transform: translateY(-1px);
+}
+.sg-chip:focus-visible {
+  outline: 2px solid var(--brown);
+  outline-offset: 2px;
+}
+.sg-chip--active {
+  background: var(--brown-deep);
+  border-color: var(--brown-deep);
+  color: var(--cream);
+}
+
+/* ---------- reusable: key hint (arrow-key affordance) ---------- */
+.sg-key-hint {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14px;
+  color: rgba(13, 10, 7, 0.55);
+  white-space: nowrap;
+}
+.sg-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sg-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border: 1px solid rgba(141, 102, 58, 0.4);
+  border-radius: 5px;
+  background: rgba(255, 250, 244, 0.7);
+  font-family: "Libertinus Serif", serif;
+  font-style: normal;
+  font-size: 13px;
+  color: var(--brown-deep);
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+.sg-kbd--pressed {
+  background: var(--brown-deep);
+  color: var(--cream);
+  transform: scale(0.92);
+}
+
+/* ---------- reusable: footer bar ---------- */
+.sg-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 22px;
+  padding: 16px 28px;
+  border-top: 1px solid rgba(141, 102, 58, 0.18);
+  background: rgba(255, 250, 244, 0.74);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.sg-footer-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(141, 102, 58, 0.25);
+}
+.sg-footer--stacked {
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 28px 14px;
+}
+
+/* ---------- reusable: live (playing) string/note stroke ---------- */
+/* shared by every plucked/bowed instrument's dynamic string overlay --
+   without this, an svg <path> with no explicit fill defaults to black,
+   which is invisible while a string sits flat but shows up as a stray
+   dark sliver the instant it bends into a curve while ringing/bowed. */
+.sg-live-string {
+  fill: none;
+  stroke-linecap: round;
+}
+
+/* ---------- reusable: floating note labels ---------- */
+.sg-note-float {
+  position: fixed;
+  z-index: 7;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--brown);
+  pointer-events: none;
+  animation: sgNoteRise 1.15s ease-out forwards;
+}
+.sg-note-float sub {
+  font-size: 0.55em;
+}
+@keyframes sgNoteRise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.85);
+  }
+  12% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -56px) scale(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-note-float {
+    animation-duration: 0.4s;
+  }
+}
+
+/* ---------- landscape-only gate for phones ---------- */
+.sg-rotate-gate {
+  display: none;
+}
+@media (max-width: 900px) and (orientation: portrait) {
+  .sg-rotate-gate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: var(--cream);
+    text-align: center;
+    padding: 12vh 12vw;
+  }
+  .sg-backdrop,
+  #sg-motes,
+  .sg-grain,
+  #slider-viewport,
+  #slider-tabs,
+  .sg-nav-btn {
+    display: none;
+  }
+}
+.sg-rotate-gate-icon {
+  animation: sgRotateHint 1.8s ease-in-out infinite;
+}
+.sg-rotate-gate h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 24px;
+  letter-spacing: -0.5px;
+  color: var(--brown-deep);
+}
+.sg-rotate-gate p {
+  margin: 0;
+  font-family: "Libertinus Serif", serif;
+  font-style: italic;
+  font-size: 15px;
+  color: rgba(13, 10, 7, 0.6);
+  max-width: 36ch;
+}
+@keyframes sgRotateHint {
+  0%,
+  15% {
+    transform: rotate(0deg);
+  }
+  45%,
+  65% {
+    transform: rotate(90deg);
+  }
+  95%,
+  100% {
+    transform: rotate(0deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-rotate-gate-icon {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  #slider-tabs {
+    top: 14px;
+    max-width: 92vw;
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+  .sg-tab {
+    font-size: 12px;
+    padding: 6px 11px;
+  }
+  .sg-nav-btn {
+    width: 38px;
+    height: 38px;
+  }
+}
